@@ -28,5 +28,21 @@ sudo easy_install m2crypto
 
 -- Store credentials in the boto config file
 
+cat ~/.aws/credentials
+[default]
+region = us-east-1
+aws_access_key_id = xxxxxxxxxxxx
+aws_secret_access_key = xxxxxxxxxxxx
 
+
+-- Test boto connection to aws
+
+python
+Python 2.7.5 (default, Mar  9 2014, 22:15:05)
+[GCC 4.2.1 Compatible Apple LLVM 5.0 (clang-500.0.68)] on darwin
+Type "help", "copyright", "credits" or "license" for more information.
+>>> import boto
+>>> ec2 = boto.connect_ec2()
+>>> ec2.get_all_zones()
+[Zone:us-east-1a, Zone:us-east-1b, Zone:us-east-1d]
 
