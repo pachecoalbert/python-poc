@@ -2,22 +2,19 @@
 """
 # -----------------------------------------------------------------------------
 
-File name: s3_folder_copy.py
-Date created: October 10, 2014
+File name: sqs.py
+Date created: October 17, 2014
 Created by: Al Pacheco
 
-Usage: s3_folder_copy.py <bukcet_name> <dir_to_copy>
+Usage: sqs.py <bukcet_name> <dir_to_copy>
 
-Program Description: This progra is used to copy a local folder and all it's
-contents to an AWS s3 bucket.  If the bucket key is already taken by another AWS
-account then it will through an error.
+Program Description: To Do
 
-TODO: Add code to strip out all leasding path data from s3 bucket key.
 
 Revisions:
 Date            Revised by                      Comments
 ----------  ----------------        -----------------------------------------------
-20140810    Al Pacheco                    Script Created
+20140817    Al Pacheco                    Script Created
 
 
 # -----------------------------------------------------------------------------
@@ -27,36 +24,56 @@ Date            Revised by                      Comments
 import boto
 import sys
 import os
-from boto.s3.key import Key
+import boto.sqs
+
 
 # -----------------------------------------------------------------------------
 #                                                           FUNCTIONS
 # -----------------------------------------------------------------------------
 
-def initiate_sqs_connection():
-    # Create a connection to AWS S3
+def initiate_sqs_connection(sqs_region):
+    # Create a connection to AWS SQS
     try:
-        s3_conn = boto.connect_s3()
+        sqs_conn = boto.sqs.connect_to_region(sqs_region)
     except Exception, e:
         print "\t Unable to establish SQS Connection. ERROR %s" % e
         exit(1)
-    return s3_conn
+    return sqs_conn
 
-def create_bucket(bucket_name,s3_conn):
+def create_sqs_q(sqs_queue,visibility_timeout,sqs_conn):
 
-    s3bucket = s3_conn.lookup(bucket_name)
-    if s3bucket:
-        print 'The bucket, %s, already exists' % bucket_name,
+    # Check if the SQS queue already exists
+    sqs_q = sqs_conn.lookup(sqs_queue)
+
+    if sqs_q:
+        # SQS already exits, set visibilty timeout if necessary
+        print '\t The SQS queue, %s, already exists' % sqs_queue
+
+        # If a visibility timeout is provided then set it
+        if visibility_timeout != 'NULL':
+            print '\t The SQS queue visibility_timeout to: %s '% visibility_timeout
+
+            try:
+                sqs_q = sqs_conn.get_queue(sqs_queue)
+                sqs_q.set_attribute('VisibilityTimeout',visibility_timeout)
+            except Exception, e:
+                print "\t  Failed to set SQS queue visibilty timeout. ERROR %s" % e
     else:
+        # SQS queue doesn't exist so create it
 
+        # If a visibility timeout is provided then set it
         try:
-            s3bucket = s3_conn.create_bucket(bucket_name)
-        except s3_conn.provider.storage_create_error, e:
-            print 'The bucket name, %s, is already used by another AWS user.  \nPlease choose another name.' % bucket_name
-            exit(1)
+            if visibility_timeout != 'NULL':
+                sqs_q = sqs_conn.create_queue(sqs_queue, visibility_timeout)
+            else:
+                sqs_q = sqs_conn.create_queue(sqs_queue)
+        except Exception, e:
+            print "\t  Failed to set SQS queue visibilty timeout. ERROR %s" % e
         else:
-            print "The bucket, %s, has been created!\n" % bucket_name,
-    return s3bucket
+            print "The SQS Queue, (%s), has been created" % sqs_queue
+
+    return sqs_q
+
 
 # function to print file upload status
 def percent_cb(complete, total):
@@ -101,10 +118,10 @@ def copy_dir_to_s3(directory,s3_bucket):
 # -----------------------------------------------------------------------------
 
 # Check to if required arguments have been provided
-if len(sys.argv) < 1 :
-    print 'Usage: ', sys.argv[0], ' <sqs_queue> '
-    print'\t <sqs_queue> = sqs queue name.'
-    #print'\t <file_to_copy> = File to copy to s3 bucket.\n'
+if len(sys.argv) < 2 :
+    print 'Usage: ', sys.argv[0], ' <sqs_queue> [<visibility_timeout>] '
+    print'\t <sqs_queue> = SQS queue name.'
+    print'\t <visibility_timeout> = Optional: set the queue visibility timeout.\n'
     exit(1)
 
 # Debug argv
@@ -117,26 +134,26 @@ for arg in  sys.argv:
 
 # Assign command line arguments to local variables
 sqs_queue = sys.argv[1]
-#dir_to_copy = sys.argv[2]
 
-print "sqs_queue = %s" % sqs_queue
-#print "dir_to_copy = %s" % dir_to_copy
+try:
+    visibility_timeout = sys.argv[2]
+except:
+    visibility_timeout = 'NULL'
 
-# Initiate s3 connections
-my_sqs_conn = initiate_sqs_connection()
+print "\t sqs_queue = %s" % sqs_queue
+print "\t visibility_timeout = %s" % visibility_timeout
+
+
+
+# Initiate SQS connections
+my_sqs_conn = initiate_sqs_connection('us-east-1')
+
+# Create the sqs queue
+myq = create_sqs_q(sqs_queue,visibility_timeout,my_sqs_conn)
 
 exit(0)
 
-# Create the bucket
-mybucket = create_bucket(bucket_name,my_s3_conn)
 
-# Upload file to s3 bucket
-#TEMP_REM copy_file_to_s3(file_to_copy,mybucket)
-
-# Copy folder to s3
-# Note: the dir must be the relative path and NOT include ./
-# EG /dir/dir_to_copy
-# cd to /dir and pass dir_to_copy
 copy_dir_to_s3(dir_to_copy,mybucket)
 
 
